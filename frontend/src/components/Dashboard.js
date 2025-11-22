@@ -25,7 +25,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
   const [filter, setFilter] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [useTB, setUseTB] = useState(true);
+  const [unit, setUnit] = useState('TB'); // 'GB', 'TB', or 'PB'
 
   useEffect(() => {
     fetchData();
@@ -83,12 +83,23 @@ const Dashboard = ({ isAdmin, onLogout }) => {
   };
 
   const convertValue = (value, fromUnit = 'TB') => {
-    if (useTB && fromUnit === 'GB') {
-      return value / 1000;
-    } else if (!useTB && fromUnit === 'TB') {
-      return value * 1000;
+    // Convert input to GB first (base unit)
+    let valueInGB = value;
+    if (fromUnit === 'TB') {
+      valueInGB = value * 1000;
+    } else if (fromUnit === 'PB') {
+      valueInGB = value * 1000000;
     }
-    return value;
+    
+    // Convert from GB to target unit
+    if (unit === 'GB') {
+      return valueInGB;
+    } else if (unit === 'TB') {
+      return valueInGB / 1000;
+    } else if (unit === 'PB') {
+      return valueInGB / 1000000;
+    }
+    return valueInGB;
   };
 
   const formatNumber = (value) => {
@@ -100,7 +111,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     });
   };
 
-  const getUnit = () => useTB ? 'TB' : 'GB';
+  const getUnit = () => unit; // Returns 'GB', 'TB', or 'PB'
 
   if (loading) {
     return <Loading description="Loading dashboard data..." withOverlay={false} />;
@@ -661,16 +672,22 @@ const Dashboard = ({ isAdmin, onLogout }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <div className="unit-toggle-group">
             <button
-              className={`unit-toggle-btn ${!useTB ? 'active' : ''}`}
-              onClick={() => setUseTB(false)}
+              className={`unit-toggle-btn ${unit === 'GB' ? 'active' : ''}`}
+              onClick={() => setUnit('GB')}
             >
               GB
             </button>
             <button
-              className={`unit-toggle-btn ${useTB ? 'active' : ''}`}
-              onClick={() => setUseTB(true)}
+              className={`unit-toggle-btn ${unit === 'TB' ? 'active' : ''}`}
+              onClick={() => setUnit('TB')}
             >
               TB
+            </button>
+            <button
+              className={`unit-toggle-btn ${unit === 'PB' ? 'active' : ''}`}
+              onClick={() => setUnit('PB')}
+            >
+              PB
             </button>
           </div>
           <Button onClick={handleLogoutClick} kind="danger">
