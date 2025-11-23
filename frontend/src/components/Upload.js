@@ -51,6 +51,19 @@ const Upload = () => {
 
   return (
     <div style={{ padding: '20px', maxWidth: '600px' }}>
+      <style>{`
+        /* Hide the black circular icon in Carbon FileUploader */
+        .cds--file-container,
+        .cds--file__drop-container,
+        .cds--file__drop-container::before,
+        .cds--file-browse-btn::before {
+          background: transparent !important;
+        }
+        .cds--file__drop-container {
+          display: none !important;
+        }
+      `}</style>
+      
       <h3>Upload Data File</h3>
       <p style={{ marginBottom: '20px', color: '#888' }}>
         Upload an Excel (.xlsx) or CSV file containing storage data
@@ -66,14 +79,26 @@ const Upload = () => {
         />
       )}
 
-      <FileUploader
-        labelTitle="Upload data file"
-        labelDescription="Excel (.xlsx) or CSV format"
-        buttonLabel="Choose file"
-        accept={['.xlsx', '.csv']}
-        onChange={handleFileChange}
-        style={{ marginBottom: '20px' }}
-      />
+      <div style={{ marginBottom: '20px' }}>
+        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>
+          Upload data file
+        </label>
+        <p style={{ marginBottom: '8px', fontSize: '14px', color: '#888' }}>
+          Excel (.xlsx) or CSV format
+        </p>
+        <input 
+          type="file"
+          accept=".xlsx,.csv"
+          onChange={handleFileChange}
+          style={{ 
+            display: 'block',
+            marginBottom: '10px',
+            padding: '8px',
+            border: '1px solid #ddd',
+            borderRadius: '4px'
+          }}
+        />
+      </div>
       
       {file && (
         <p style={{ marginBottom: '10px' }}>
