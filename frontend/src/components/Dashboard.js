@@ -184,13 +184,23 @@ const Dashboard = ({ isAdmin, onLogout }) => {
   let donutTitle = '';
 
   // Color palettes
-  const utilizedColors = [
-    '#0f62fe', '#8a3ffc', '#33b1ff', '#007d79',
-    '#ff7eb6', '#fa4d56', '#24a148', '#f1c21b',
-    '#d12771', '#8a3800'
+  // Outer ring uses blue (#0f62fe) and gray (#e0e0e0)
+  const outerUtilizedColor = '#0f62fe';
+  const outerAvailableColor = '#e0e0e0';
+  
+  // Inner ring uses distinct colors that avoid blue and gray
+  const innerRingColors = [
+    '#8a3ffc', // Purple
+    '#ff7eb6', // Pink
+    '#fa4d56', // Red
+    '#24a148', // Green
+    '#f1c21b', // Yellow
+    '#007d79', // Teal
+    '#d12771', // Magenta
+    '#8a3800', // Brown
+    '#33b1ff', // Light Blue (different from outer blue)
+    '#ee538b'  // Rose
   ];
-
-  const availableColor = '#e0e0e0';
 
   if (level === 'pools' && data.pools && Array.isArray(data.pools)) {
     const totalAllocated = data.pools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
@@ -202,11 +212,11 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       convertValue(totalUtilized, 'TB'),
       convertValue(totalAvailable, 'TB')
     ];
-    const outerColors = ['#0f62fe', availableColor];
+    const outerColors = [outerUtilizedColor, outerAvailableColor];
 
     const innerLabels = data.pools.map(p => p.pool || 'Unknown');
     const innerData = data.pools.map(p => convertValue(p.utilized_tb || 0, 'TB'));
-    const innerColors = data.pools.map((_, idx) => utilizedColors[idx % utilizedColors.length]);
+    const innerColors = data.pools.map((_, idx) => innerRingColors[idx % innerRingColors.length]);
 
     donutData = {
       labels: [...outerLabels, ...innerLabels],
@@ -245,11 +255,24 @@ const Dashboard = ({ isAdmin, onLogout }) => {
               weight: 'bold'
             },
             formatter: (value, context) => {
+              const label = context.chart.data.labels[context.dataIndex + 2];
               const total = innerData.reduce((a, b) => a + b, 0);
               const percentage = ((value / total) * 100).toFixed(1);
-              // Only show label if segment is large enough (>5%)
-              return percentage > 5 ? `${percentage}%` : '';
-            }
+              // Show ALL labels regardless of size
+              return `${label}\n${percentage}%`;
+            },
+            anchor: 'end',
+            align: 'end',
+            offset: 10,
+            clip: false,
+            textAlign: 'center',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            borderWidth: 1,
+            borderColor: function(context) {
+              return context.dataset.backgroundColor[context.dataIndex];
+            },
+            borderRadius: 4,
+            padding: 4
           }
         }
       ]
@@ -265,11 +288,11 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       convertValue(totalUtilized, 'TB'),
       convertValue(totalAvailable, 'TB')
     ];
-    const outerColors = ['#0f62fe', availableColor];
+    const outerColors = [outerUtilizedColor, outerAvailableColor];
 
     const innerLabels = data.data.map(cp => cp.child_pool || 'Unknown');
     const innerData = data.data.map(cp => convertValue(cp.utilized_tb || 0, 'TB'));
-    const innerColors = data.data.map((_, idx) => utilizedColors[idx % utilizedColors.length]);
+    const innerColors = data.data.map((_, idx) => innerRingColors[idx % innerRingColors.length]);
 
     donutData = {
       labels: [...outerLabels, ...innerLabels],
@@ -308,10 +331,24 @@ const Dashboard = ({ isAdmin, onLogout }) => {
               weight: 'bold'
             },
             formatter: (value, context) => {
+              const label = context.chart.data.labels[context.dataIndex + 2];
               const total = innerData.reduce((a, b) => a + b, 0);
               const percentage = ((value / total) * 100).toFixed(1);
-              return percentage > 5 ? `${percentage}%` : '';
-            }
+              // Show ALL labels regardless of size
+              return `${label}\n${percentage}%`;
+            },
+            anchor: 'end',
+            align: 'end',
+            offset: 10,
+            clip: false,
+            textAlign: 'center',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            borderWidth: 1,
+            borderColor: function(context) {
+              return context.dataset.backgroundColor[context.dataIndex];
+            },
+            borderRadius: 4,
+            padding: 4
           }
         }
       ]
@@ -327,11 +364,11 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       convertValue(totalUtilized, 'GB'),
       convertValue(totalAvailable, 'GB')
     ];
-    const outerColors = ['#0f62fe', availableColor];
+    const outerColors = [outerUtilizedColor, outerAvailableColor];
 
     const innerLabels = data.data.map(t => t.name || 'Unknown');
     const innerData = data.data.map(t => convertValue(t.utilized_gb || 0, 'GB'));
-    const innerColors = data.data.map((_, idx) => utilizedColors[idx % utilizedColors.length]);
+    const innerColors = data.data.map((_, idx) => innerRingColors[idx % innerRingColors.length]);
 
     donutData = {
       labels: [...outerLabels, ...innerLabels],
@@ -370,10 +407,24 @@ const Dashboard = ({ isAdmin, onLogout }) => {
               weight: 'bold'
             },
             formatter: (value, context) => {
+              const label = context.chart.data.labels[context.dataIndex + 2];
               const total = innerData.reduce((a, b) => a + b, 0);
               const percentage = ((value / total) * 100).toFixed(1);
-              return percentage > 5 ? `${percentage}%` : '';
-            }
+              // Show ALL labels regardless of size
+              return `${label}\n${percentage}%`;
+            },
+            anchor: 'end',
+            align: 'end',
+            offset: 10,
+            clip: false,
+            textAlign: 'center',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            borderWidth: 1,
+            borderColor: function(context) {
+              return context.dataset.backgroundColor[context.dataIndex];
+            },
+            borderRadius: 4,
+            padding: 4
           }
         }
       ]
@@ -389,11 +440,11 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       convertValue(totalUtilized, 'GB'),
       convertValue(totalAvailable, 'GB')
     ];
-    const outerColors = ['#0f62fe', availableColor];
+    const outerColors = [outerUtilizedColor, outerAvailableColor];
 
     const innerLabels = data.data.map(v => v.volume || 'Unknown');
     const innerData = data.data.map(v => convertValue(v.utilized_gb || 0, 'GB'));
-    const innerColors = data.data.map((_, idx) => utilizedColors[idx % utilizedColors.length]);
+    const innerColors = data.data.map((_, idx) => innerRingColors[idx % innerRingColors.length]);
 
     donutData = {
       labels: [...outerLabels, ...innerLabels],
@@ -432,10 +483,24 @@ const Dashboard = ({ isAdmin, onLogout }) => {
               weight: 'bold'
             },
             formatter: (value, context) => {
+              const label = context.chart.data.labels[context.dataIndex + 2];
               const total = innerData.reduce((a, b) => a + b, 0);
               const percentage = ((value / total) * 100).toFixed(1);
-              return percentage > 5 ? `${percentage}%` : '';
-            }
+              // Show ALL labels regardless of size
+              return `${label}\n${percentage}%`;
+            },
+            anchor: 'end',
+            align: 'end',
+            offset: 10,
+            clip: false,
+            textAlign: 'center',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            borderWidth: 1,
+            borderColor: function(context) {
+              return context.dataset.backgroundColor[context.dataIndex];
+            },
+            borderRadius: 4,
+            padding: 4
           }
         }
       ]
@@ -814,10 +879,20 @@ const Dashboard = ({ isAdmin, onLogout }) => {
                   maintainAspectRatio: false,
                   plugins: {
                     datalabels: {
-                      display: false
+                      display: true,
+                      anchor: 'end',
+                      align: 'top',
+                      color: '#161616',
+                      font: {
+                        size: 16,
+                        weight: 'bold'
+                      },
+                      formatter: (value) => {
+                        return formatNumber(value);
+                      }
                     },
                     legend: {
-                      display: true
+                      display: false
                     },
                     tooltip: {
                       callbacks: {
