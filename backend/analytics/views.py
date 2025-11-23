@@ -14,16 +14,20 @@ logger = logging.getLogger(__name__)
 
 def is_lab_engineering(value):
     """
-    Check if a value represents Lab Engineering (unallocated capacity placeholder).
+    Check if a value represents unallocated capacity placeholder.
     Returns True if value is:
     - None/blank
     - "Lab Engineering" (case-insensitive)
+    - "buffer" (case-insensitive)
     - Empty string
+    
+    These are placeholders for unallocated capacity, NOT real tenants.
     """
     if not value:
         return True
     if isinstance(value, str):
-        return value.strip().lower() == 'lab engineering' or value.strip() == ''
+        stripped = value.strip().lower()
+        return stripped == 'lab engineering' or stripped == 'buffer' or stripped == ''
     return False
 
 
@@ -226,7 +230,13 @@ def upload_data(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_dashboard_data(request):
-    """Unified dashboard endpoint that handles all drill-down levels via query parameters"""
+    """
+    Unified dashboard endpoint that handles all drill-down levels via query parameters.
+    
+    v5.6 FIX: Backend now calculates and returns both:
+    - total_capacity_tb: Includes ALL pools (including Lab Engineering/blank)
+    - pools data: Excludes Lab Engineering for display
+    """
     try:
         pool_name = request.GET.get('pool')
         child_pool_name = request.GET.get('child_pool')
@@ -234,40 +244,46 @@ def get_dashboard_data(request):
 
         # Level 1: Pools (no parameters)
         if not pool_name:
+            # Calculate TOTAL CAPACITY (includes ALL child pools including Lab Engineering)
+            # Sum ALL volumes regardless of child_pool
+            all_volumes = StorageData.objects.all()
+            total_capacity_tb = sum(v.volume_size_gb for v in all_volumes) / 1000
+            
+            # Calculate pool data by summing child pools for each parent pool
+            # EXCLUDES Lab Engineering child pools
             pools = StorageData.objects.values('pool').distinct()
-
             pool_data = []
             for pool in pools:
                 pname = pool['pool']
-                # Skip Lab Engineering pools
-                if is_lab_engineering(pname):
-                    continue
                     
-                volumes = StorageData.objects.filter(pool=pname)
+                # Get all volumes in this parent pool, excluding Lab Engineering child pools
+                volumes = StorageData.objects.filter(pool=pname).exclude(
+                    child_pool__iregex=r'^\s*(lab engineering|buffer)\s*$|^\s*$'
+                )
 
                 total_size_gb = sum(v.volume_size_gb for v in volumes)
                 total_utilized_gb = sum(v.utilized_gb for v in volumes)
                 total_left_gb = sum(v.left_gb for v in volumes)
 
-                pool_data.append({
-                    'pool': pname,
-                    'allocated_tb': total_size_gb / 1000,
-                    'utilized_tb': total_utilized_gb / 1000,
-                    'left_tb': total_left_gb / 1000,
-                    'avg_util': (total_utilized_gb / total_size_gb) if total_size_gb > 0 else 0,
-                    'volume_count': volumes.count()
-                })
+                # Only add pool to display if it has non-Lab-Engineering capacity
+                if total_size_gb > 0:
+                    pool_data.append({
+                        'pool': pname,
+                        'allocated_tb': total_size_gb / 1000,
+                        'utilized_tb': total_utilized_gb / 1000,
+                        'left_tb': total_left_gb / 1000,
+                        'avg_util': (total_utilized_gb / total_size_gb) if total_size_gb > 0 else 0,
+                        'volume_count': volumes.count()
+                    })
 
-            # Get top tenants (exclude Lab Engineering)
-            all_volumes = StorageData.objects.all()
+            # Get top tenants (exclude Lab Engineering child pools)
+            all_volumes = StorageData.objects.exclude(
+                child_pool__iregex=r'^\s*(lab engineering|buffer)\s*$|^\s*$'
+            )
             tenant_data = {}
             for volume in all_volumes:
-                # Skip Lab Engineering pools
-                if is_lab_engineering(volume.pool):
-                    continue
-                    
                 tenant = volume.volume.split('_')[0] if '_' in volume.volume else volume.volume
-                # Skip Lab Engineering tenants
+                # Skip if tenant name itself is Lab Engineering/Buffer
                 if is_lab_engineering(tenant):
                     continue
                     
@@ -279,14 +295,19 @@ def get_dashboard_data(request):
 
             return Response({
                 'level': 'pools',
+                'total_capacity_tb': total_capacity_tb,  # Includes Lab Engineering child pool
                 'pools': pool_data,
                 'top_tenants': top_tenants
             })
 
         # Level 2: Child Pools (pool parameter only)
         elif pool_name and not child_pool_name:
+            # Calculate TOTAL CAPACITY for this parent pool (includes ALL child pools including Lab Engineering)
+            all_volumes = StorageData.objects.filter(pool=pool_name)
+            total_capacity_tb = sum(v.volume_size_gb for v in all_volumes) / 1000
+            
+            # Calculate child pool data (EXCLUDES Lab Engineering child pools for display)
             child_pools = StorageData.objects.filter(pool=pool_name).values('child_pool').distinct()
-
             child_pool_data = []
             for cp in child_pools:
                 cpname = cp['child_pool']
@@ -311,19 +332,24 @@ def get_dashboard_data(request):
 
             return Response({
                 'level': 'child_pools',
+                'total_capacity_tb': total_capacity_tb,  # Includes Lab Engineering child pool
                 'data': child_pool_data,
                 'breadcrumb': {'pool': pool_name}
             })
 
         # Level 3: Tenants (pool and child_pool parameters)
         elif pool_name and child_pool_name and not tenant_name:
+            # Calculate TOTAL CAPACITY for this child pool (includes ALL tenants including Buffer)
+            all_volumes = StorageData.objects.filter(pool=pool_name, child_pool=child_pool_name)
+            total_capacity_gb = sum(v.volume_size_gb for v in all_volumes)
+            
+            # Calculate tenant data (EXCLUDES Buffer/Lab Engineering tenants for display)
             volumes = StorageData.objects.filter(pool=pool_name, child_pool=child_pool_name)
-
             tenant_data = {}
             for volume in volumes:
                 tenant = volume.volume.split('_')[0] if '_' in volume.volume else volume.volume
                 
-                # Skip Lab Engineering tenants
+                # Skip Lab Engineering/Buffer tenants
                 if is_lab_engineering(tenant):
                     continue
 
@@ -349,12 +375,22 @@ def get_dashboard_data(request):
 
             return Response({
                 'level': 'tenants',
+                'total_capacity_gb': total_capacity_gb,  # Includes Buffer tenant capacity
                 'data': list(tenant_data.values()),
                 'breadcrumb': {'pool': pool_name, 'child_pool': child_pool_name}
             })
 
         # Level 4: Volumes (all parameters)
         else:
+            # Calculate TOTAL CAPACITY for this tenant (ALL volumes)
+            all_volumes = StorageData.objects.filter(
+                pool=pool_name,
+                child_pool=child_pool_name,
+                volume__startswith=tenant_name
+            )
+            total_capacity_gb = sum(v.volume_size_gb for v in all_volumes)
+            
+            # Get volume data
             volumes = StorageData.objects.filter(
                 pool=pool_name,
                 child_pool=child_pool_name,
@@ -378,6 +414,7 @@ def get_dashboard_data(request):
 
             return Response({
                 'level': 'volumes',
+                'total_capacity_gb': total_capacity_gb,  # NEW: Total capacity
                 'data': volume_data,
                 'breadcrumb': {'pool': pool_name, 'child_pool': child_pool_name, 'tenant': tenant_name}
             })

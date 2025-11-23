@@ -146,23 +146,24 @@ const Dashboard = ({ isAdmin, onLogout }) => {
   // ============================================================================
   // SUMMARY DATA CALCULATION (for all drill levels)
   // v5.6 CHANGES:
-  // 1. Added total_capacity calculation (INCLUDES Lab Engineering)
-  // 2. Added available_buffer calculation (Total SAN Capacity - Allocated)
+  // 1. Use backend-provided total_capacity_tb/total_capacity_gb (INCLUDES Lab Engineering)
+  // 2. Calculate available_buffer (Total SAN Capacity - Allocated)
   // 3. Exclude "Lab Engineering" from Allocated, Utilized, Unutilized, Avg Utilization
   // 4. Renamed "left" to "unutilized"
+  // 5. NO HARDCODED VALUES - all capacity data comes from backend
   // ============================================================================
   let summaryData = null;
 
   if (level === 'pools' && data.pools && Array.isArray(data.pools)) {
-    // Backend already filters out Lab Engineering, so we calculate directly
+    // Backend already filters out Lab Engineering from pools array
     const totalAllocated = data.pools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
     const totalUtilized = data.pools.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
     const totalUnutilized = data.pools.reduce((sum, p) => sum + (p.left_tb || 0), 0);
     const avgUtil = totalAllocated > 0 ? (totalUtilized / totalAllocated) : 0;
     
-    // Total SAN Capacity = 8000 TB (hardcoded physical capacity)
-    // Available Buffer = Total Capacity - Allocated
-    const totalCapacity = 8000; // Physical SAN capacity in TB
+    // FIXED: Use backend-provided total_capacity_tb (includes Lab Engineering)
+    // NO HARDCODED VALUES!
+    const totalCapacity = data.total_capacity_tb || 0;
     const availableBuffer = totalCapacity - totalAllocated;
 
     summaryData = {
@@ -174,15 +175,15 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       avg_util: avgUtil
     };
   } else if (level === 'child_pools' && data.data && Array.isArray(data.data)) {
-    // Total SAN Capacity: INCLUDES all child pools (Lab Engineering already filtered at pool level)
-    const totalCapacity = data.data.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
-    
-    // Other metrics: Use all data (Lab Engineering filtering happens at pool level)
+    // Lab Engineering already filtered at pool level, use all child pools
     const totalAllocated = data.data.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
     const totalUtilized = data.data.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
     const totalUnutilized = data.data.reduce((sum, p) => sum + (p.left_tb || 0), 0);
     const avgUtil = totalAllocated > 0 ? (totalUtilized / totalAllocated) : 0;
     
+    // FIXED: Use backend-provided total_capacity_tb (includes all child pools in this pool)
+    // NO HARDCODED VALUES!
+    const totalCapacity = data.total_capacity_tb || 0;
     const availableBuffer = totalCapacity - totalAllocated;
 
     summaryData = {
@@ -194,15 +195,15 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       avg_util: avgUtil
     };
   } else if (level === 'tenants' && data.data && Array.isArray(data.data)) {
-    // Total SAN Capacity: INCLUDES all tenants (Lab Engineering already filtered at pool level)
-    const totalCapacity = data.data.reduce((sum, t) => sum + (t.allocated_gb || 0), 0);
-    
-    // Other metrics: Use all data (Lab Engineering filtering happens at pool level)
+    // Lab Engineering already filtered at pool level, use all tenants
     const totalAllocated = data.data.reduce((sum, t) => sum + (t.allocated_gb || 0), 0);
     const totalUtilized = data.data.reduce((sum, t) => sum + (t.utilized_gb || 0), 0);
     const totalUnutilized = data.data.reduce((sum, t) => sum + (t.left_gb || 0), 0);
     const avgUtil = totalAllocated > 0 ? (totalUtilized / totalAllocated) : 0;
     
+    // FIXED: Use backend-provided total_capacity_gb (includes all tenants in this child pool)
+    // NO HARDCODED VALUES!
+    const totalCapacity = data.total_capacity_gb || 0;
     const availableBuffer = totalCapacity - totalAllocated;
 
     summaryData = {
@@ -214,15 +215,15 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       avg_util: avgUtil
     };
   } else if (level === 'volumes' && data.data && Array.isArray(data.data)) {
-    // Total SAN Capacity: Use volume_size_gb (INCLUDES all volumes - Lab Engineering already filtered)
-    const totalCapacity = data.data.reduce((sum, v) => sum + (v.volume_size_gb || 0), 0);
-    
-    // Other metrics: Use all data (Lab Engineering filtering happens at pool level)
+    // Lab Engineering already filtered at pool level, use all volumes
     const totalAllocated = data.data.reduce((sum, v) => sum + (v.volume_size_gb || 0), 0);
     const totalUtilized = data.data.reduce((sum, v) => sum + (v.utilized_gb || 0), 0);
     const totalUnutilized = data.data.reduce((sum, v) => sum + (v.left_gb || 0), 0);
     const avgUtil = totalAllocated > 0 ? (totalUtilized / totalAllocated) : 0;
     
+    // FIXED: Use backend-provided total_capacity_gb (includes all volumes for this tenant)
+    // NO HARDCODED VALUES!
+    const totalCapacity = data.total_capacity_gb || 0;
     const availableBuffer = totalCapacity - totalAllocated;
 
     summaryData = {
@@ -816,10 +817,11 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       {/* ======================================================================
           SUMMARY TABLE
           v5.6 CHANGES:
-          1. Added "Total SAN Capacity" as FIRST column (includes Lab Engineering)
-          2. Added "Available Buffer" as SECOND column (Total - Allocated)
+          1. Use backend-provided total_capacity_tb/total_capacity_gb (INCLUDES Lab Engineering)
+          2. Calculate available_buffer (Total SAN Capacity - Allocated)
           3. Renamed "Available" to "Unutilized"
           4. All other columns EXCLUDE Lab Engineering
+          5. NO HARDCODED VALUES
           ====================================================================== */}
       {summaryData && (
         <div className="summary-table custom-table">
