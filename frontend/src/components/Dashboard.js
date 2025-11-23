@@ -12,12 +12,8 @@ import {
   Button,
   Loading,
 } from '@carbon/react';
-import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
-import ChartDataLabels from 'chartjs-plugin-datalabels';
-import { Pie, Bar, Doughnut } from 'react-chartjs-2';
+import ReactECharts from 'echarts-for-react';
 import api from '../services/api';
-
-ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ChartDataLabels);
 
 const Dashboard = ({ isAdmin, onLogout }) => {
   const [data, setData] = useState({});
@@ -179,12 +175,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     };
   }
 
-  // Stacked Donut Chart data - Available at all levels
-  let donutData = null;
-  let donutTitle = '';
-
   // Color palettes
-  // Outer ring uses blue (#0f62fe) and gray (#e0e0e0)
   const outerUtilizedColor = '#0f62fe';
   const outerAvailableColor = '#e0e0e0';
   
@@ -202,325 +193,249 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     '#ee538b'  // Rose
   ];
 
-  if (level === 'pools' && data.pools && Array.isArray(data.pools)) {
-    const totalAllocated = data.pools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
-    const totalUtilized = data.pools.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
-    const totalAvailable = totalAllocated - totalUtilized;
+  // Generate ECharts Donut Chart Options
+  const getDonutChartOption = (levelType) => {
+    let outerData = [];
+    let innerDataItems = [];
+    let titleText = '';
 
-    const outerLabels = ['Utilized', 'Available'];
-    const outerData = [
-      convertValue(totalUtilized, 'TB'),
-      convertValue(totalAvailable, 'TB')
-    ];
-    const outerColors = [outerUtilizedColor, outerAvailableColor];
+    if (levelType === 'pools' && data.pools && Array.isArray(data.pools)) {
+      const totalAllocated = data.pools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
+      const totalUtilized = data.pools.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
+      const totalAvailable = totalAllocated - totalUtilized;
 
-    const innerLabels = data.pools.map(p => p.pool || 'Unknown');
-    const innerData = data.pools.map(p => convertValue(p.utilized_tb || 0, 'TB'));
-    const innerColors = data.pools.map((_, idx) => innerRingColors[idx % innerRingColors.length]);
+      outerData = [
+        { name: 'Utilized', value: convertValue(totalUtilized, 'TB'), itemStyle: { color: outerUtilizedColor } },
+        { name: 'Available', value: convertValue(totalAvailable, 'TB'), itemStyle: { color: outerAvailableColor } }
+      ];
 
-    donutData = {
-      labels: [...outerLabels, ...innerLabels],
-      datasets: [
-        {
-          label: 'Overall',
-          data: outerData,
-          backgroundColor: outerColors,
-          borderWidth: 2,
-          borderColor: '#fff',
-          weight: 1,
-          datalabels: {
-            color: '#161616',
-            font: {
-              weight: 'bold',
-              size: 14
-            },
-            formatter: (value, context) => {
-              const label = context.chart.data.labels[context.dataIndex];
-              const percentage = ((value / outerData.reduce((a, b) => a + b, 0)) * 100).toFixed(1);
-              return `${label}\n${percentage}%`;
-            }
-          }
-        },
-        {
-          label: 'Pool Breakdown',
-          data: innerData,
-          backgroundColor: innerColors,
-          borderWidth: 2,
-          borderColor: '#fff',
-          weight: 2,
-          datalabels: {
-            color: '#161616',
-            font: {
-              size: 10,
-              weight: 'bold'
-            },
-            formatter: (value, context) => {
-              const label = context.chart.data.labels[context.dataIndex + 2];
-              const total = innerData.reduce((a, b) => a + b, 0);
-              const percentage = ((value / total) * 100).toFixed(1);
-              // Show ALL labels regardless of size
-              return `${label}\n${percentage}%`;
-            },
-            anchor: 'end',
-            align: 'end',
-            offset: 10,
-            clip: false,
-            textAlign: 'center',
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            borderWidth: 1,
-            borderColor: function(context) {
-              return context.dataset.backgroundColor[context.dataIndex];
-            },
-            borderRadius: 4,
-            padding: 4
-          }
+      innerDataItems = data.pools.map((p, idx) => ({
+        name: p.pool || 'Unknown',
+        value: convertValue(p.utilized_tb || 0, 'TB'),
+        itemStyle: { color: innerRingColors[idx % innerRingColors.length] }
+      }));
+
+      titleText = 'Pool Utilization Distribution';
+    } else if (levelType === 'child_pools' && data.data && Array.isArray(data.data)) {
+      const totalAllocated = data.data.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
+      const totalUtilized = data.data.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
+      const totalAvailable = totalAllocated - totalUtilized;
+
+      outerData = [
+        { name: 'Utilized', value: convertValue(totalUtilized, 'TB'), itemStyle: { color: outerUtilizedColor } },
+        { name: 'Available', value: convertValue(totalAvailable, 'TB'), itemStyle: { color: outerAvailableColor } }
+      ];
+
+      innerDataItems = data.data.map((cp, idx) => ({
+        name: cp.child_pool || 'Unknown',
+        value: convertValue(cp.utilized_tb || 0, 'TB'),
+        itemStyle: { color: innerRingColors[idx % innerRingColors.length] }
+      }));
+
+      titleText = 'Child Pool Utilization Distribution';
+    } else if (levelType === 'tenants' && data.data && Array.isArray(data.data)) {
+      const totalAllocated = data.data.reduce((sum, t) => sum + (t.allocated_gb || 0), 0);
+      const totalUtilized = data.data.reduce((sum, t) => sum + (t.utilized_gb || 0), 0);
+      const totalAvailable = totalAllocated - totalUtilized;
+
+      outerData = [
+        { name: 'Utilized', value: convertValue(totalUtilized, 'GB'), itemStyle: { color: outerUtilizedColor } },
+        { name: 'Available', value: convertValue(totalAvailable, 'GB'), itemStyle: { color: outerAvailableColor } }
+      ];
+
+      innerDataItems = data.data.map((t, idx) => ({
+        name: t.name || 'Unknown',
+        value: convertValue(t.utilized_gb || 0, 'GB'),
+        itemStyle: { color: innerRingColors[idx % innerRingColors.length] }
+      }));
+
+      titleText = 'Tenant Utilization Distribution';
+    } else if (levelType === 'volumes' && data.data && Array.isArray(data.data)) {
+      const totalAllocated = data.data.reduce((sum, v) => sum + (v.volume_size_gb || 0), 0);
+      const totalUtilized = data.data.reduce((sum, v) => sum + (v.utilized_gb || 0), 0);
+      const totalAvailable = totalAllocated - totalUtilized;
+
+      outerData = [
+        { name: 'Utilized', value: convertValue(totalUtilized, 'GB'), itemStyle: { color: outerUtilizedColor } },
+        { name: 'Available', value: convertValue(totalAvailable, 'GB'), itemStyle: { color: outerAvailableColor } }
+      ];
+
+      innerDataItems = data.data.map((v, idx) => ({
+        name: v.volume || 'Unknown',
+        value: convertValue(v.utilized_gb || 0, 'GB'),
+        itemStyle: { color: innerRingColors[idx % innerRingColors.length] }
+      }));
+
+      titleText = 'Volume Utilization Distribution';
+    }
+
+    if (outerData.length === 0) return null;
+
+    return {
+      title: {
+        text: titleText,
+        left: 'center',
+        top: 10,
+        textStyle: {
+          fontSize: 16,
+          fontWeight: 'bold'
         }
-      ]
-    };
-    donutTitle = 'Pool Utilization Distribution';
-  } else if (level === 'child_pools' && data.data && Array.isArray(data.data)) {
-    const totalAllocated = data.data.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
-    const totalUtilized = data.data.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
-    const totalAvailable = totalAllocated - totalUtilized;
-
-    const outerLabels = ['Utilized', 'Available'];
-    const outerData = [
-      convertValue(totalUtilized, 'TB'),
-      convertValue(totalAvailable, 'TB')
-    ];
-    const outerColors = [outerUtilizedColor, outerAvailableColor];
-
-    const innerLabels = data.data.map(cp => cp.child_pool || 'Unknown');
-    const innerData = data.data.map(cp => convertValue(cp.utilized_tb || 0, 'TB'));
-    const innerColors = data.data.map((_, idx) => innerRingColors[idx % innerRingColors.length]);
-
-    donutData = {
-      labels: [...outerLabels, ...innerLabels],
-      datasets: [
-        {
-          label: 'Overall',
-          data: outerData,
-          backgroundColor: outerColors,
-          borderWidth: 2,
-          borderColor: '#fff',
-          weight: 1,
-          datalabels: {
-            color: '#161616',
-            font: {
-              weight: 'bold',
-              size: 14
-            },
-            formatter: (value, context) => {
-              const label = context.chart.data.labels[context.dataIndex];
-              const percentage = ((value / outerData.reduce((a, b) => a + b, 0)) * 100).toFixed(1);
-              return `${label}\n${percentage}%`;
-            }
-          }
-        },
-        {
-          label: 'Child Pool Breakdown',
-          data: innerData,
-          backgroundColor: innerColors,
-          borderWidth: 2,
-          borderColor: '#fff',
-          weight: 2,
-          datalabels: {
-            color: '#161616',
-            font: {
-              size: 10,
-              weight: 'bold'
-            },
-            formatter: (value, context) => {
-              const label = context.chart.data.labels[context.dataIndex + 2];
-              const total = innerData.reduce((a, b) => a + b, 0);
-              const percentage = ((value / total) * 100).toFixed(1);
-              // Show ALL labels regardless of size
-              return `${label}\n${percentage}%`;
-            },
-            anchor: 'end',
-            align: 'end',
-            offset: 10,
-            clip: false,
-            textAlign: 'center',
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            borderWidth: 1,
-            borderColor: function(context) {
-              return context.dataset.backgroundColor[context.dataIndex];
-            },
-            borderRadius: 4,
-            padding: 4
-          }
+      },
+      tooltip: {
+        trigger: 'item',
+        formatter: (params) => {
+          const percentage = params.percent.toFixed(1);
+          return `${params.name}: ${formatNumber(params.value)} ${getUnit()} (${percentage}%)`;
         }
-      ]
-    };
-    donutTitle = 'Child Pool Utilization Distribution';
-  } else if (level === 'tenants' && data.data && Array.isArray(data.data)) {
-    const totalAllocated = data.data.reduce((sum, t) => sum + (t.allocated_gb || 0), 0);
-    const totalUtilized = data.data.reduce((sum, t) => sum + (t.utilized_gb || 0), 0);
-    const totalAvailable = totalAllocated - totalUtilized;
-
-    const outerLabels = ['Utilized', 'Available'];
-    const outerData = [
-      convertValue(totalUtilized, 'GB'),
-      convertValue(totalAvailable, 'GB')
-    ];
-    const outerColors = [outerUtilizedColor, outerAvailableColor];
-
-    const innerLabels = data.data.map(t => t.name || 'Unknown');
-    const innerData = data.data.map(t => convertValue(t.utilized_gb || 0, 'GB'));
-    const innerColors = data.data.map((_, idx) => innerRingColors[idx % innerRingColors.length]);
-
-    donutData = {
-      labels: [...outerLabels, ...innerLabels],
-      datasets: [
+      },
+      series: [
         {
-          label: 'Overall',
-          data: outerData,
-          backgroundColor: outerColors,
-          borderWidth: 2,
-          borderColor: '#fff',
-          weight: 1,
-          datalabels: {
-            color: '#161616',
-            font: {
-              weight: 'bold',
-              size: 14
+          name: 'Overall',
+          type: 'pie',
+          radius: ['40%', '55%'],
+          center: ['50%', '55%'],
+          avoidLabelOverlap: true,
+          label: {
+            show: true,
+            position: 'outside',
+            formatter: (params) => {
+              return `{name|${params.name}}\n{percent|${params.percent.toFixed(1)}%}`;
             },
-            formatter: (value, context) => {
-              const label = context.chart.data.labels[context.dataIndex];
-              const percentage = ((value / outerData.reduce((a, b) => a + b, 0)) * 100).toFixed(1);
-              return `${label}\n${percentage}%`;
+            rich: {
+              name: {
+                fontSize: 14,
+                fontWeight: 'bold',
+                color: '#161616'
+              },
+              percent: {
+                fontSize: 14,
+                fontWeight: 'bold',
+                color: '#161616'
+              }
             }
-          }
-        },
-        {
-          label: 'Tenant Breakdown',
-          data: innerData,
-          backgroundColor: innerColors,
-          borderWidth: 2,
-          borderColor: '#fff',
-          weight: 2,
-          datalabels: {
-            color: '#161616',
-            font: {
-              size: 10,
-              weight: 'bold'
-            },
-            formatter: (value, context) => {
-              const label = context.chart.data.labels[context.dataIndex + 2];
-              const total = innerData.reduce((a, b) => a + b, 0);
-              const percentage = ((value / total) * 100).toFixed(1);
-              // Show ALL labels regardless of size
-              return `${label}\n${percentage}%`;
-            },
-            anchor: 'end',
-            align: 'end',
-            offset: 10,
-            clip: false,
-            textAlign: 'center',
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            borderWidth: 1,
-            borderColor: function(context) {
-              return context.dataset.backgroundColor[context.dataIndex];
-            },
-            borderRadius: 4,
-            padding: 4
-          }
-        }
-      ]
-    };
-    donutTitle = 'Tenant Utilization Distribution';
-  } else if (level === 'volumes' && data.data && Array.isArray(data.data)) {
-    const totalAllocated = data.data.reduce((sum, v) => sum + (v.volume_size_gb || 0), 0);
-    const totalUtilized = data.data.reduce((sum, v) => sum + (v.utilized_gb || 0), 0);
-    const totalAvailable = totalAllocated - totalUtilized;
-
-    const outerLabels = ['Utilized', 'Available'];
-    const outerData = [
-      convertValue(totalUtilized, 'GB'),
-      convertValue(totalAvailable, 'GB')
-    ];
-    const outerColors = [outerUtilizedColor, outerAvailableColor];
-
-    const innerLabels = data.data.map(v => v.volume || 'Unknown');
-    const innerData = data.data.map(v => convertValue(v.utilized_gb || 0, 'GB'));
-    const innerColors = data.data.map((_, idx) => innerRingColors[idx % innerRingColors.length]);
-
-    donutData = {
-      labels: [...outerLabels, ...innerLabels],
-      datasets: [
-        {
-          label: 'Overall',
-          data: outerData,
-          backgroundColor: outerColors,
-          borderWidth: 2,
-          borderColor: '#fff',
-          weight: 1,
-          datalabels: {
-            color: '#161616',
-            font: {
-              weight: 'bold',
-              size: 14
-            },
-            formatter: (value, context) => {
-              const label = context.chart.data.labels[context.dataIndex];
-              const percentage = ((value / outerData.reduce((a, b) => a + b, 0)) * 100).toFixed(1);
-              return `${label}\n${percentage}%`;
-            }
-          }
-        },
-        {
-          label: 'Volume Breakdown',
-          data: innerData,
-          backgroundColor: innerColors,
-          borderWidth: 2,
-          borderColor: '#fff',
-          weight: 2,
-          datalabels: {
-            color: '#161616',
-            font: {
-              size: 10,
-              weight: 'bold'
-            },
-            formatter: (value, context) => {
-              const label = context.chart.data.labels[context.dataIndex + 2];
-              const total = innerData.reduce((a, b) => a + b, 0);
-              const percentage = ((value / total) * 100).toFixed(1);
-              // Show ALL labels regardless of size
-              return `${label}\n${percentage}%`;
-            },
-            anchor: 'end',
-            align: 'end',
-            offset: 10,
-            clip: false,
-            textAlign: 'center',
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            borderWidth: 1,
-            borderColor: function(context) {
-              return context.dataset.backgroundColor[context.dataIndex];
-            },
-            borderRadius: 4,
-            padding: 4
-          }
-        }
-      ]
-    };
-    donutTitle = 'Volume Utilization Distribution';
-  }
-
-  // Bar chart data - only for pools level
-  const barData = (level === 'pools' && data.top_tenants && Array.isArray(data.top_tenants))
-    ? {
-        labels: data.top_tenants.map((t) => t.name || 'Unknown'),
-        datasets: [
-          {
-            label: `Utilized ${getUnit()}`,
-            data: data.top_tenants.map((t) => convertValue((t.utilized_gb || 0) / 1000, 'TB')),
-            backgroundColor: '#0f62fe',
           },
-        ],
+          labelLine: {
+            show: true,
+            length: 15,
+            length2: 10,
+            lineStyle: {
+              width: 2
+            }
+          },
+          data: outerData
+        },
+        {
+          name: 'Breakdown',
+          type: 'pie',
+          radius: ['0%', '35%'],
+          center: ['50%', '55%'],
+          avoidLabelOverlap: true,
+          label: {
+            show: true,
+            position: 'outside',
+            formatter: (params) => {
+              return `{name|${params.name}}\n{percent|${params.percent.toFixed(1)}%}`;
+            },
+            rich: {
+              name: {
+                fontSize: 10,
+                fontWeight: 'bold',
+                color: '#161616'
+              },
+              percent: {
+                fontSize: 10,
+                fontWeight: 'bold',
+                color: '#161616'
+              }
+            }
+          },
+          labelLine: {
+            show: true,
+            length: 10,
+            length2: 8,
+            lineStyle: {
+              width: 1
+            }
+          },
+          data: innerDataItems
+        }
+      ]
+    };
+  };
+
+  // Generate ECharts Bar Chart Options
+  const getBarChartOption = () => {
+    if (level !== 'pools' || !data.top_tenants || !Array.isArray(data.top_tenants)) {
+      return null;
+    }
+
+    const labels = data.top_tenants.map((t) => t.name || 'Unknown');
+    const values = data.top_tenants.map((t) => convertValue((t.utilized_gb || 0) / 1000, 'TB'));
+
+    return {
+      title: {
+        text: 'Top 10 Tenants by Utilization',
+        left: 'center',
+        top: 10,
+        textStyle: {
+          fontSize: 16,
+          fontWeight: 'bold'
+        }
+      },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'shadow'
+        },
+        formatter: (params) => {
+          const value = params[0].value;
+          return `${params[0].name}: ${formatNumber(value)} ${getUnit()}`;
+        }
+      },
+      xAxis: {
+        type: 'category',
+        data: labels,
+        axisLabel: {
+          rotate: 45,
+          interval: 0,
+          fontSize: 12
+        }
+      },
+      yAxis: {
+        type: 'value',
+        name: getUnit(),
+        nameLocation: 'middle',
+        nameGap: 50,
+        axisLabel: {
+          formatter: (value) => formatNumber(value)
+        }
+      },
+      series: [
+        {
+          name: `Utilized ${getUnit()}`,
+          type: 'bar',
+          data: values,
+          itemStyle: {
+            color: '#0f62fe'
+          },
+          label: {
+            show: true,
+            position: 'top',
+            formatter: (params) => formatNumber(params.value),
+            fontSize: 16,
+            fontWeight: 'bold',
+            color: '#161616'
+          }
+        }
+      ],
+      grid: {
+        left: '10%',
+        right: '5%',
+        bottom: '20%',
+        top: '15%'
       }
-    : null;
+    };
+  };
 
   // Table data
   let tableHeaders = [];
@@ -603,6 +518,9 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       clickable: false,
     }));
   }
+
+  const donutOption = getDonutChartOption(level);
+  const barOption = getBarChartOption();
 
   return (
     <div style={{ padding: '20px' }}>
@@ -788,140 +706,29 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       {/* Charts Row */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: level === 'pools' && barData ? '1fr 1fr' : '1fr',
+        gridTemplateColumns: level === 'pools' && barOption ? '1fr 1fr' : '1fr',
         gap: '20px',
         marginBottom: '20px'
       }}>
-        {/* Stacked Donut Chart */}
-        {donutData && (
+        {/* Donut Chart with ECharts */}
+        {donutOption && (
           <Tile>
-            <h4>{donutTitle}</h4>
-            <div style={{ height: '350px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              <Doughnut
-                data={donutData}
-                options={{
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: {
-                      display: false
-                    },
-                    tooltip: {
-                      callbacks: {
-                        label: function(context) {
-                          const label = context.label || '';
-                          const value = context.parsed || 0;
-                          const dataset = context.dataset;
-                          const total = dataset.data.reduce((a, b) => a + b, 0);
-                          const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                          return `${label}: ${formatNumber(value)} ${getUnit()} (${percentage}%)`;
-                        }
-                      }
-                    },
-                    datalabels: {
-                      color: function(context) {
-                        return '#161616';
-                      },
-                      font: {
-                        size: function(context) {
-                          return context.datasetIndex === 0 ? 14 : 11;
-                        },
-                        weight: 'bold'
-                      },
-                      formatter: function(value, context) {
-                        const label = context.chart.data.labels[context.dataIndex];
-                        const total = context.chart.data.datasets[context.datasetIndex].data.reduce((a, b) => a + b, 0);
-                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                        
-                        if (context.datasetIndex === 1 && percentage < 5) {
-                          return '';
-                        }
-                        
-                        if (context.datasetIndex === 0) {
-                          return `${label}\n${percentage}%`;
-                        }
-                        return `${percentage}%`;
-                      },
-                      anchor: 'end',
-                      align: 'end',
-                      offset: function(context) {
-                        return context.datasetIndex === 0 ? 25 : 12;
-                      },
-                      clip: false,
-                      textAlign: 'center',
-                      backgroundColor: function(context) {
-                        return context.datasetIndex === 0 ? 'transparent' : 'rgba(255, 255, 255, 0.9)';
-                      },
-                      borderWidth: function(context) {
-                        return context.datasetIndex === 0 ? 0 : 2;
-                      },
-                      borderColor: function(context) {
-                        return context.dataset.backgroundColor[context.dataIndex];
-                      },
-                      borderRadius: 4,
-                      padding: 6
-                    }
-                  },
-                  cutout: '50%'
-                }}
-              />
-            </div>
+            <ReactECharts 
+              option={donutOption} 
+              style={{ height: '400px', width: '100%' }}
+              opts={{ renderer: 'svg' }}
+            />
           </Tile>
         )}
 
-        {/* Bar Chart - Only on pools level */}
-        {level === 'pools' && barData && (
+        {/* Bar Chart with ECharts - Only on pools level */}
+        {level === 'pools' && barOption && (
           <Tile>
-            <h4>Top 10 Tenants by Utilization</h4>
-            <div style={{ height: '350px' }}>
-              <Bar
-                data={barData}
-                options={{
-                  maintainAspectRatio: false,
-                  plugins: {
-                    datalabels: {
-                      display: true,
-                      anchor: 'end',
-                      align: 'top',
-                      color: '#161616',
-                      font: {
-                        size: 16,
-                        weight: 'bold'
-                      },
-                      formatter: (value) => {
-                        return formatNumber(value);
-                      }
-                    },
-                    legend: {
-                      display: false
-                    },
-                    tooltip: {
-                      callbacks: {
-                        label: function(context) {
-                          return `${formatNumber(context.parsed.y)} ${getUnit()}`;
-                        }
-                      }
-                    }
-                  },
-                  scales: {
-                    y: {
-                      beginAtZero: true,
-                      title: { display: true, text: getUnit() },
-                      ticks: {
-                        callback: function(value) {
-                          return formatNumber(value);
-                        }
-                      }
-                    },
-                    x: {
-                      ticks: {
-                        maxRotation: 45,
-                        minRotation: 45
-                      }
-                    }
-                  }
-                }}
-              />
-            </div>
+            <ReactECharts 
+              option={barOption} 
+              style={{ height: '400px', width: '100%' }}
+              opts={{ renderer: 'svg' }}
+            />
           </Tile>
         )}
       </div>
