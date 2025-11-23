@@ -12,6 +12,21 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def is_lab_engineering(value):
+    """
+    Check if a value represents Lab Engineering (unallocated capacity placeholder).
+    Returns True if value is:
+    - None/blank
+    - "Lab Engineering" (case-insensitive)
+    - Empty string
+    """
+    if not value:
+        return True
+    if isinstance(value, str):
+        return value.strip().lower() == 'lab engineering' or value.strip() == ''
+    return False
+
+
 class CsrfExemptSessionAuthentication:
     def authenticate(self, request):
         user = getattr(request._request, 'user', None)
@@ -224,6 +239,10 @@ def get_dashboard_data(request):
             pool_data = []
             for pool in pools:
                 pname = pool['pool']
+                # Skip Lab Engineering pools
+                if is_lab_engineering(pname):
+                    continue
+                    
                 volumes = StorageData.objects.filter(pool=pname)
 
                 total_size_gb = sum(v.volume_size_gb for v in volumes)
@@ -239,11 +258,19 @@ def get_dashboard_data(request):
                     'volume_count': volumes.count()
                 })
 
-            # Get top tenants
+            # Get top tenants (exclude Lab Engineering)
             all_volumes = StorageData.objects.all()
             tenant_data = {}
             for volume in all_volumes:
+                # Skip Lab Engineering pools
+                if is_lab_engineering(volume.pool):
+                    continue
+                    
                 tenant = volume.volume.split('_')[0] if '_' in volume.volume else volume.volume
+                # Skip Lab Engineering tenants
+                if is_lab_engineering(tenant):
+                    continue
+                    
                 if tenant not in tenant_data:
                     tenant_data[tenant] = {'name': tenant, 'utilized_gb': 0}
                 tenant_data[tenant]['utilized_gb'] += volume.utilized_gb
@@ -263,6 +290,10 @@ def get_dashboard_data(request):
             child_pool_data = []
             for cp in child_pools:
                 cpname = cp['child_pool']
+                # Skip Lab Engineering child pools
+                if is_lab_engineering(cpname):
+                    continue
+                    
                 volumes = StorageData.objects.filter(pool=pool_name, child_pool=cpname)
 
                 total_size_gb = sum(v.volume_size_gb for v in volumes)
@@ -291,6 +322,10 @@ def get_dashboard_data(request):
             tenant_data = {}
             for volume in volumes:
                 tenant = volume.volume.split('_')[0] if '_' in volume.volume else volume.volume
+                
+                # Skip Lab Engineering tenants
+                if is_lab_engineering(tenant):
+                    continue
 
                 if tenant not in tenant_data:
                     tenant_data[tenant] = {

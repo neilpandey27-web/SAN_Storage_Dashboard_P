@@ -154,17 +154,15 @@ const Dashboard = ({ isAdmin, onLogout }) => {
   let summaryData = null;
 
   if (level === 'pools' && data.pools && Array.isArray(data.pools)) {
-    // Total SAN Capacity: INCLUDES Lab Engineering
-    const totalCapacity = data.pools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
-    
-    // Other metrics: EXCLUDE Lab Engineering
-    const filteredPools = data.pools.filter(p => !isLabEngineering(p.pool));
-    const totalAllocated = filteredPools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
-    const totalUtilized = filteredPools.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
-    const totalUnutilized = filteredPools.reduce((sum, p) => sum + (p.left_tb || 0), 0);
+    // Backend already filters out Lab Engineering, so we calculate directly
+    const totalAllocated = data.pools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
+    const totalUtilized = data.pools.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
+    const totalUnutilized = data.pools.reduce((sum, p) => sum + (p.left_tb || 0), 0);
     const avgUtil = totalAllocated > 0 ? (totalUtilized / totalAllocated) : 0;
     
-    // Available Buffer = Total Capacity - Allocated (excludes Lab Engineering from allocated)
+    // Total SAN Capacity = 8000 TB (hardcoded physical capacity)
+    // Available Buffer = Total Capacity - Allocated
+    const totalCapacity = 8000; // Physical SAN capacity in TB
     const availableBuffer = totalCapacity - totalAllocated;
 
     summaryData = {
@@ -271,11 +269,9 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     // DATA PREPARATION FOR EACH DRILL LEVEL (EXCLUDE Lab Engineering)
     // ------------------------------------------------------------------------
     if (levelType === 'pools' && data.pools && Array.isArray(data.pools)) {
-      // Filter out Lab Engineering
-      const filteredPools = data.pools.filter(p => !isLabEngineering(p.pool));
-      
-      const totalAllocated = filteredPools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
-      const totalUtilized = filteredPools.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
+      // Backend already filters out Lab Engineering
+      const totalAllocated = data.pools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
+      const totalUtilized = data.pools.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
       const totalUnutilized = totalAllocated - totalUtilized;
 
       outerData = [
@@ -283,7 +279,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
         { name: 'Unutilized', value: convertValue(totalUnutilized, 'TB'), itemStyle: { color: outerUnutilizedColor } }
       ];
 
-      innerDataItems = filteredPools.map((p, idx) => ({
+      innerDataItems = data.pools.map((p, idx) => ({
         name: p.pool || 'Unknown',
         value: convertValue(p.utilized_tb || 0, 'TB'),
         itemStyle: { color: innerRingColors[idx % innerRingColors.length] }
@@ -565,10 +561,8 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       { key: 'avg_util', header: 'Avg Utilization %' },
     ];
     
-    // Filter out Lab Engineering pools
-    const filteredPools = data.pools.filter(p => !isLabEngineering(p.pool));
-    
-    tableRows = filteredPools.map((pool, index) => ({
+    // Backend already filters out Lab Engineering pools
+    tableRows = data.pools.map((pool, index) => ({
       id: String(index),
       pool: String(pool.pool || 'Unknown'),
       allocated: formatNumber(convertValue(pool.allocated_tb || 0, 'TB')),
