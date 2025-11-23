@@ -349,6 +349,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     // ECHARTS CONFIGURATION
     // ------------------------------------------------------------------------
     return {
+      backgroundColor: 'transparent',
       title: {
         text: titleText,
         left: 'center',
@@ -479,6 +480,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     const values = filteredTenants.map((t) => convertValue((t.utilized_gb || 0) / 1000, 'TB'));
 
     return {
+      backgroundColor: 'transparent',
       title: {
         text: 'Top 10 Tenants by Utilization',
         left: 'center',
