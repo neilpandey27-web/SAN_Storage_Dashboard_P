@@ -16,6 +16,9 @@ import ReactECharts from 'echarts-for-react';
 import api from '../services/api';
 
 const Dashboard = ({ isAdmin, onLogout }) => {
+  // ============================================================================
+  // STATE MANAGEMENT
+  // ============================================================================
   const [data, setData] = useState({});
   const [level, setLevel] = useState('pools');
   const [filter, setFilter] = useState({});
@@ -23,6 +26,9 @@ const Dashboard = ({ isAdmin, onLogout }) => {
   const [error, setError] = useState('');
   const [unit, setUnit] = useState('TB'); // 'GB', 'TB', or 'PB'
 
+  // ============================================================================
+  // DATA FETCHING
+  // ============================================================================
   useEffect(() => {
     fetchData();
   }, [filter]);
@@ -45,6 +51,9 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     }
   };
 
+  // ============================================================================
+  // NAVIGATION HANDLERS
+  // ============================================================================
   const handleDrillDown = (type, value) => {
     console.log('Drill down clicked:', type, value);
     if (type === 'pool') {
@@ -78,6 +87,9 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     }
   };
 
+  // ============================================================================
+  // UNIT CONVERSION UTILITIES
+  // ============================================================================
   const convertValue = (value, fromUnit = 'TB') => {
     // Convert input to GB first (base unit)
     let valueInGB = value;
@@ -109,6 +121,9 @@ const Dashboard = ({ isAdmin, onLogout }) => {
 
   const getUnit = () => unit; // Returns 'GB', 'TB', or 'PB'
 
+  // ============================================================================
+  // LOADING AND ERROR STATES
+  // ============================================================================
   if (loading) {
     return <Loading description="Loading dashboard data..." withOverlay={false} />;
   }
@@ -122,7 +137,9 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     );
   }
 
-  // Calculate summary for all levels
+  // ============================================================================
+  // SUMMARY DATA CALCULATION (for all drill levels)
+  // ============================================================================
   let summaryData = null;
 
   if (level === 'pools' && data.pools && Array.isArray(data.pools)) {
@@ -175,11 +192,14 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     };
   }
 
-  // Color palettes
+  // ============================================================================
+  // COLOR PALETTES
+  // ============================================================================
+  // Outer ring colors (Utilized/Available)
   const outerUtilizedColor = '#0f62fe';
   const outerAvailableColor = '#e0e0e0';
   
-  // Inner ring uses distinct colors that avoid blue and gray
+  // Inner ring colors (Pools/Child Pools/Tenants/Volumes breakdown)
   const innerRingColors = [
     '#8a3ffc', // Purple
     '#ff7eb6', // Pink
@@ -193,12 +213,17 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     '#ee538b'  // Rose
   ];
 
-  // Generate ECharts Donut Chart Options
+  // ============================================================================
+  // DONUT CHART CONFIGURATION
+  // ============================================================================
   const getDonutChartOption = (levelType) => {
     let outerData = [];
     let innerDataItems = [];
     let titleText = '';
 
+    // ------------------------------------------------------------------------
+    // DATA PREPARATION FOR EACH DRILL LEVEL
+    // ------------------------------------------------------------------------
     if (levelType === 'pools' && data.pools && Array.isArray(data.pools)) {
       const totalAllocated = data.pools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
       const totalUtilized = data.pools.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
@@ -271,6 +296,9 @@ const Dashboard = ({ isAdmin, onLogout }) => {
 
     if (outerData.length === 0) return null;
 
+    // ------------------------------------------------------------------------
+    // ECHARTS CONFIGURATION
+    // ------------------------------------------------------------------------
     return {
       title: {
         text: titleText,
@@ -289,61 +317,32 @@ const Dashboard = ({ isAdmin, onLogout }) => {
         }
       },
       series: [
-        {
-          name: 'Overall',
-          type: 'pie',
-          radius: ['40%', '55%'],
-          center: ['50%', '55%'],
-          avoidLabelOverlap: true,
-          label: {
-            show: true,
-            position: 'outside',
-            formatter: (params) => {
-              return `{name|${params.name}}\n{percent|${params.percent.toFixed(1)}%}`;
-            },
-            rich: {
-              name: {
-                fontSize: 14,
-                fontWeight: 'bold',
-                color: '#161616'
-              },
-              percent: {
-                fontSize: 14,
-                fontWeight: 'bold',
-                color: '#161616'
-              }
-            }
-          },
-          labelLine: {
-            show: true,
-            length: 15,
-            length2: 10,
-            lineStyle: {
-              width: 2
-            }
-          },
-          data: outerData
-        },
+        // --------------------------------------------------------------------
+        // INNER RING (Breakdown: Pools/Child Pools/Tenants/Volumes)
+        // --------------------------------------------------------------------
         {
           name: 'Breakdown',
           type: 'pie',
-          radius: ['0%', '35%'],
-          center: ['50%', '55%'],
-          avoidLabelOverlap: true,
+          radius: ['15%', '35%'],        // 15% hole in center, 35% outer edge
+          center: ['50%', '55%'],         // Chart center position
+          avoidLabelOverlap: true,        // Enable label collision detection
+          minAngle: 3,                    // Hide labels for segments < 3 degrees
+          zlevel: 2,                      // Render on top of outer ring
           label: {
             show: true,
             position: 'outside',
+            distanceToLabelLine: 5,       // Distance from connector line end
             formatter: (params) => {
               return `{name|${params.name}}\n{percent|${params.percent.toFixed(1)}%}`;
             },
             rich: {
               name: {
-                fontSize: 10,
+                fontSize: 12,             // INNER RING LABEL FONT SIZE
                 fontWeight: 'bold',
                 color: '#161616'
               },
               percent: {
-                fontSize: 10,
+                fontSize: 12,             // INNER RING LABEL FONT SIZE
                 fontWeight: 'bold',
                 color: '#161616'
               }
@@ -351,19 +350,70 @@ const Dashboard = ({ isAdmin, onLogout }) => {
           },
           labelLine: {
             show: true,
-            length: 10,
-            length2: 8,
+            length: 40,                   // INNER RING: First segment length
+            length2: 25,                  // INNER RING: Second segment length
             lineStyle: {
-              width: 1
+              width: 3                    // INNER RING: Connector line thickness
             }
           },
+          labelLayout: {
+            hideOverlap: true,            // Automatically hide overlapping labels
+            moveOverlap: 'shiftY'         // Shift labels vertically to avoid overlap
+          },
           data: innerDataItems
+        },
+        // --------------------------------------------------------------------
+        // OUTER RING (Overall: Utilized/Available)
+        // --------------------------------------------------------------------
+        {
+          name: 'Overall',
+          type: 'pie',
+          radius: ['40%', '55%'],         // 40% inner edge, 55% outer edge
+          center: ['50%', '55%'],         // Chart center position
+          avoidLabelOverlap: true,        // Enable label collision detection
+          minAngle: 5,                    // Hide labels for segments < 5 degrees
+          zlevel: 1,                      // Render behind inner ring
+          label: {
+            show: true,
+            position: 'outside',
+            distanceToLabelLine: 5,       // Distance from connector line end
+            formatter: (params) => {
+              return `{name|${params.name}}\n{percent|${params.percent.toFixed(1)}%}`;
+            },
+            rich: {
+              name: {
+                fontSize: 14,             // OUTER RING LABEL FONT SIZE
+                fontWeight: 'bold',
+                color: '#161616'
+              },
+              percent: {
+                fontSize: 14,             // OUTER RING LABEL FONT SIZE
+                fontWeight: 'bold',
+                color: '#161616'
+              }
+            }
+          },
+          labelLine: {
+            show: true,
+            length: 40,                   // OUTER RING: First segment length
+            length2: 25,                  // OUTER RING: Second segment length
+            lineStyle: {
+              width: 3                    // OUTER RING: Connector line thickness
+            }
+          },
+          labelLayout: {
+            hideOverlap: true,            // Automatically hide overlapping labels
+            moveOverlap: 'shiftY'         // Shift labels vertically to avoid overlap
+          },
+          data: outerData
         }
       ]
     };
   };
 
-  // Generate ECharts Bar Chart Options
+  // ============================================================================
+  // BAR CHART CONFIGURATION (Top 10 Tenants)
+  // ============================================================================
   const getBarChartOption = () => {
     if (level !== 'pools' || !data.top_tenants || !Array.isArray(data.top_tenants)) {
       return null;
@@ -422,7 +472,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
             show: true,
             position: 'top',
             formatter: (params) => formatNumber(params.value),
-            fontSize: 16,
+            fontSize: 16,                 // BAR CHART LABEL FONT SIZE
             fontWeight: 'bold',
             color: '#161616'
           }
@@ -437,10 +487,15 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     };
   };
 
-  // Table data
+  // ============================================================================
+  // TABLE DATA PREPARATION
+  // ============================================================================
   let tableHeaders = [];
   let tableRows = [];
 
+  // ------------------------------------------------------------------------
+  // POOLS LEVEL TABLE
+  // ------------------------------------------------------------------------
   if (level === 'pools' && data.pools && Array.isArray(data.pools)) {
     tableHeaders = [
       { key: 'pool', header: 'Pool' },
@@ -460,7 +515,11 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       clickValue: pool.pool,
       clickType: 'pool',
     }));
-  } else if (level === 'child_pools' && data.data && Array.isArray(data.data)) {
+  } 
+  // ------------------------------------------------------------------------
+  // CHILD POOLS LEVEL TABLE
+  // ------------------------------------------------------------------------
+  else if (level === 'child_pools' && data.data && Array.isArray(data.data)) {
     tableHeaders = [
       { key: 'child_pool', header: 'Child Pool' },
       { key: 'allocated', header: `Allocated ${getUnit()}` },
@@ -479,7 +538,11 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       clickValue: cp.child_pool,
       clickType: 'child_pool',
     }));
-  } else if (level === 'tenants' && data.data && Array.isArray(data.data)) {
+  } 
+  // ------------------------------------------------------------------------
+  // TENANTS LEVEL TABLE
+  // ------------------------------------------------------------------------
+  else if (level === 'tenants' && data.data && Array.isArray(data.data)) {
     tableHeaders = [
       { key: 'name', header: 'Tenant' },
       { key: 'allocated', header: `Allocated ${getUnit()}` },
@@ -498,7 +561,11 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       clickValue: tenant.name,
       clickType: 'tenant',
     }));
-  } else if (level === 'volumes' && data.data && Array.isArray(data.data)) {
+  } 
+  // ------------------------------------------------------------------------
+  // VOLUMES LEVEL TABLE
+  // ------------------------------------------------------------------------
+  else if (level === 'volumes' && data.data && Array.isArray(data.data)) {
     tableHeaders = [
       { key: 'volume', header: 'Volume' },
       { key: 'system', header: 'System' },
@@ -522,8 +589,14 @@ const Dashboard = ({ isAdmin, onLogout }) => {
   const donutOption = getDonutChartOption(level);
   const barOption = getBarChartOption();
 
+  // ============================================================================
+  // RENDER COMPONENT
+  // ============================================================================
   return (
     <div style={{ padding: '20px' }}>
+      {/* ======================================================================
+          CSS STYLES
+          ====================================================================== */}
       <style>{`
         .custom-table table {
           border-collapse: collapse;
@@ -635,6 +708,9 @@ const Dashboard = ({ isAdmin, onLogout }) => {
         }
       `}</style>
 
+      {/* ======================================================================
+          NAVIGATION BAR (Back, Refresh, Breadcrumb, Unit Toggle, Logout)
+          ====================================================================== */}
       <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           {level !== 'pools' && (
@@ -679,7 +755,9 @@ const Dashboard = ({ isAdmin, onLogout }) => {
         </div>
       </div>
 
-      {/* Overall Summary Table */}
+      {/* ======================================================================
+          SUMMARY TABLE (Allocated, Utilized, Available, Avg Utilization)
+          ====================================================================== */}
       {summaryData && (
         <div className="summary-table custom-table">
           <table>
@@ -703,14 +781,18 @@ const Dashboard = ({ isAdmin, onLogout }) => {
         </div>
       )}
 
-      {/* Charts Row */}
+      {/* ======================================================================
+          CHARTS ROW (Donut Chart + Bar Chart)
+          ====================================================================== */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: level === 'pools' && barOption ? '1fr 1fr' : '1fr',
         gap: '20px',
         marginBottom: '20px'
       }}>
-        {/* Donut Chart with ECharts */}
+        {/* ------------------------------------------------------------------
+            DONUT CHART (ECharts)
+            ------------------------------------------------------------------ */}
         {donutOption && (
           <Tile>
             <ReactECharts 
@@ -721,7 +803,9 @@ const Dashboard = ({ isAdmin, onLogout }) => {
           </Tile>
         )}
 
-        {/* Bar Chart with ECharts - Only on pools level */}
+        {/* ------------------------------------------------------------------
+            BAR CHART (ECharts - Only on pools level)
+            ------------------------------------------------------------------ */}
         {level === 'pools' && barOption && (
           <Tile>
             <ReactECharts 
@@ -733,7 +817,9 @@ const Dashboard = ({ isAdmin, onLogout }) => {
         )}
       </div>
 
-      {/* Data Table */}
+      {/* ======================================================================
+          DATA TABLE (Pools, Child Pools, Tenants, or Volumes)
+          ====================================================================== */}
       {tableRows.length > 0 && (
         <div className="custom-table">
           <DataTable rows={tableRows} headers={tableHeaders}>
@@ -790,6 +876,9 @@ const Dashboard = ({ isAdmin, onLogout }) => {
         </div>
       )}
 
+      {/* ======================================================================
+          EMPTY STATE MESSAGE
+          ====================================================================== */}
       {tableRows.length === 0 && (
         <Tile>
           <p>No data available. {isAdmin ? 'Please upload a data file.' : 'Contact admin to upload data.'}</p>
